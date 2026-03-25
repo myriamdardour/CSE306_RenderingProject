@@ -1,4 +1,5 @@
 #define _CRT_SECURE_NO_WARNINGS 1
+#include <iostream>
 #include <vector>
 #include <cmath>
 #include <random>
@@ -90,6 +91,55 @@ public:
 	// and the unit normal N
 	bool intersect(const Ray& ray, Vector& P, double &t, Vector& N) const {
 		 // TODO (lab 1) : compute the intersection (just true/false at the begining of lab 1, then P, t and N as well)
+		double delta = dot(ray.u, ray.O-C)*dot(ray.u, ray.O-C) - ((ray.O-C).norm2() - R*R); 
+		if (delta < 0){
+			return false;
+		}
+		// we want the smallest positive one 
+		else if (delta == 0){
+			double t0 = dot(ray.u,C-ray.O);
+			if (t0 >=0){
+				t = t0;
+				P = ray.O + t*ray.u;
+				N = P-C;
+				N.normalize();
+				return true;
+			}
+		}
+		else {
+			double t1 = dot(ray.u,C-ray.O) + sqrt(delta);
+			double t2 = dot(ray.u,C-ray.O) - sqrt(delta);
+			if (t1 <= t2){
+				if (t1>=0){
+					t = t1;
+					P = ray.O + t*ray.u;
+					N = P-C;
+					N.normalize();
+					return true;
+				}
+				else if (t2 >= 0){
+					t = t2;
+					P = ray.O + t*ray.u;
+					N = P-C;
+					N.normalize();
+					return true;
+				}
+			}
+			else if (t2 >= 0){
+				t = t2;
+				P = ray.O + t*ray.u;
+				N = P-C;
+				N.normalize();
+				return true;
+			}
+			else if (t1 >=0){
+				t = t1;
+				P = ray.O + t*ray.u;
+				N = P-C;
+				N.normalize();
+				return true;
+			}
+		}
 		return false;
 	}
 
@@ -126,8 +176,24 @@ public:
 
 		// TODO (lab 1): iterate through the objects and check the intersections with all of them, 
 		// and keep the closest intersection, i.e., the one if smallest positive value of t
+		bool res = false;
+		for (size_t i = 0; i < objects.size(); ++i){
+			double better_t{};
+			Vector better_P{};
+			Vector better_N{};
 
-		return false;
+			if (objects[i]->intersect(ray, better_P, better_t, better_N)){
+				res = true;
+				if (better_t <= t){
+					t = better_t;
+					P = better_P;
+					N = better_N;
+					object_id = i;
+				}
+			}
+
+		}
+		return res;
 	}
 
 
@@ -140,24 +206,33 @@ public:
 		// in lab 1, the color only includes direct lighting with shadows
 
 		Vector P, N;
-		double t;
+		double t = 1e9;
 		int object_id;
 		if (intersect(ray, P, t, N, object_id)) {
-
+			//std::cout << object_id << std::endl;
 			if (objects[object_id]->mirror) {
 
 				// return getColor in the reflected direction, with recursion_depth+1 (recursively)
-			} // else
+				Ray next_ray(P+0.001*N, ray.u - 2*dot(ray.u,N)*N);
+				return getColor(next_ray,recursion_depth+1);
+			}
 
 			if (objects[object_id]->transparent) { // optional
 
 				// return getColor in the refraction direction, with recursion_depth+1 (recursively)
 			} // else
 
+			double maxposdot = dot(N,(light_position-P)/(light_position-P).norm());
+			if (maxposdot > 0){
+				// std::cout << (light_intensity/(4*M_PI*(light_position-P).norm2()))*(objects[object_id]->albedo/M_PI)*maxposdot << std::endl;
+				return (light_intensity/(4*M_PI*(light_position-P).norm2()))*(objects[object_id]->albedo/M_PI)*maxposdot;
+			}
 			// test if there is a shadow by sending a new ray
 			// if there is no shadow, compute the formula with dot products etc.
 
 
+			
+		
 			// TODO (lab 2) : add indirect lighting component with a recursive call
 		}
 
@@ -182,7 +257,7 @@ int main() {
 		engine[i].seed(i);
 	}
 
-	Sphere center_sphere(Vector(0, 0, 0), 10., Vector(0.8, 0.8, 0.8));
+	Sphere center_sphere(Vector(0, 0, 0), 10., Vector(0.8, 0.8, 0.8),true);
 	Sphere wall_left(Vector(-1000, 0, 0), 940, Vector(0.5, 0.8, 0.1));
 	Sphere wall_right(Vector(1000, 0, 0), 940, Vector(0.9, 0.2, 0.3));
 	Sphere wall_front(Vector(0, 0, -1000), 940, Vector(0.1, 0.6, 0.7));
@@ -191,23 +266,23 @@ int main() {
 	Sphere floor(Vector(0, -1000, 0), 990, Vector(0.6, 0.5, 0.7));
 
 	Scene scene;
-	scene.camera_center = Vector(0, 0, 0);
+	scene.camera_center = Vector(0, 0, 55);
 	scene.light_position = Vector(-10,20,40);
 	scene.light_intensity = 3E7;
 	scene.fov = 60 * M_PI / 180.;
-	scene.gamma = 1.0;    // TODO (lab 1) : play with gamma ; typically, gamma = 2.2
+	scene.gamma = 2.2;    // TODO (lab 1) : play with gamma ; typically, gamma = 2.2
 	scene.max_light_bounce = 5;
 
 	scene.addObject(&center_sphere);
 
-	/*
+
 	scene.addObject(&wall_left);
 	scene.addObject(&wall_right);
 	scene.addObject(&wall_front);
 	scene.addObject(&wall_behind);
 	scene.addObject(&ceiling);
 	scene.addObject(&floor);
-	*/
+
 
 	std::vector<unsigned char> image(W * H * 3, 0);
 
@@ -217,7 +292,8 @@ int main() {
 			Vector color;
 
 			// TODO (lab 1) : correct ray_direction so that it goes through each pixel (j, i)			
-			Vector ray_direction(0., 0., -1);
+			Vector ray_direction(j-W/2 + 1/2, H/2-i-1/2, -W/(2*tan(scene.fov/2)));
+			ray_direction.normalize();
 
 			Ray ray(scene.camera_center, ray_direction);
 
