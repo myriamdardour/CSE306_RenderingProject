@@ -16,6 +16,8 @@
 static std::default_random_engine engine[32];
 static std::uniform_real_distribution<double> uniform(0, 1);
 
+double sqr(double x) { return x * x; };
+
 class Vector {
 public:
 	explicit Vector(double x = 0, double y = 0, double z = 0) {
@@ -70,22 +72,23 @@ public:
 
 class Object {
 public:
-	Object(const Vector& albedo) : albedo(albedo) {};
+	Object(const Vector& albedo, bool mirror = false, bool transparent = false) : albedo(albedo), mirror(mirror), transparent(transparent) {};
 
-	virtual bool intersect(const Ray& ray, Vector& P, double& t, Vector& N) = 0;
+	virtual bool intersect(const Ray& ray, Vector& P, double& t, Vector& N) const = 0;
 
 	Vector albedo;
+	bool mirror, transparent;
 };
 
 class Sphere : public Object {
 public:
-	Sphere(const Vector& center, double radius, const Vector& albedo) : ::Object(albedo), C(center), R(radius) {};
+	Sphere(const Vector& center, double radius, const Vector& albedo, bool mirror = false, bool transparent = false) : ::Object(albedo, mirror, transparent), C(center), R(radius) {};
 
 	// returns true iif there is an intersection between the ray and the sphere
 	// if there is an intersection, also computes the point of intersection P, 
 	// t>=0 the distance between the ray origin and P (i.e., the parameter along the ray)
 	// and the unit normal N
-	bool intersect(const Ray& ray, Vector& P, double &t, Vector& N) {
+	bool intersect(const Ray& ray, Vector& P, double &t, Vector& N) const {
 		 // TODO (lab 1) : compute the intersection (just true/false at the begining of lab 1, then P, t and N as well)
 		return false;
 	}
@@ -94,6 +97,17 @@ public:
 	Vector C;
 };
 
+
+// I will provide you with an obj mesh loader (labs 3 and 4)
+class TriangleMesh : public Object {
+public:
+	TriangleMesh(const Vector& albedo, bool mirror = false, bool transparent = false) : ::Object(albedo, mirror, transparent) {};
+
+	bool intersect(const Ray& ray, Vector& P, double& t, Vector& N) const {
+		// TODO (labs 3 and 4)
+		return false;
+	}
+};
 
 
 class Scene {
@@ -108,27 +122,55 @@ public:
     // t>=0 the distance between the ray origin and P (i.e., the parameter along the ray)
     // and the unit normal N. 
 	// Also returns the index of the object within the std::vector objects in object_id
-	bool intersect(const Ray& ray, Vector& P, double& t, Vector& N, int &object_id) {
+	bool intersect(const Ray& ray, Vector& P, double& t, Vector& N, int &object_id) const  {
+
 		// TODO (lab 1): iterate through the objects and check the intersections with all of them, 
-		// and keep the closest intersection
+		// and keep the closest intersection, i.e., the one if smallest positive value of t
 
 		return false;
 	}
 
 
 	// return the radiance (color) along ray
-	Vector getColor(const Ray& ray) {
+	Vector getColor(const Ray& ray, int recursion_depth) {
+
+		if (recursion_depth >= max_light_bounce) return Vector(0, 0, 0);
+
 		// TODO (lab 1) : if intersect with ray, use the returned information to compute the color ; otherwise black 
 		// in lab 1, the color only includes direct lighting with shadows
 
-		// TODO (lab 2) : make this function recursive, to include indirect lighting
+		Vector P, N;
+		double t;
+		int object_id;
+		if (intersect(ray, P, t, N, object_id)) {
+
+			if (objects[object_id]->mirror) {
+
+				// return getColor in the reflected direction, with recursion_depth+1 (recursively)
+			} // else
+
+			if (objects[object_id]->transparent) { // optional
+
+				// return getColor in the refraction direction, with recursion_depth+1 (recursively)
+			} // else
+
+			// test if there is a shadow by sending a new ray
+			// if there is no shadow, compute the formula with dot products etc.
+
+
+			// TODO (lab 2) : add indirect lighting component with a recursive call
+		}
+
+		
 
 		return Vector(0, 0, 0);
 	}
 
 	std::vector<const Object*> objects;
+
 	Vector camera_center, light_position;
-	double fov, gamma;
+	double fov, gamma, light_intensity;
+	int max_light_bounce;
 };
 
 
@@ -151,8 +193,11 @@ int main() {
 	Scene scene;
 	scene.camera_center = Vector(0, 0, 0);
 	scene.light_position = Vector(-10,20,40);
+	scene.light_intensity = 3E7;
 	scene.fov = 60 * M_PI / 180.;
-	scene.gamma = 1.;    // TODO (lab 1) : play with gamma ; typically, gamma = 2.2
+	scene.gamma = 1.0;    // TODO (lab 1) : play with gamma ; typically, gamma = 2.2
+	scene.max_light_bounce = 5;
+
 	scene.addObject(&center_sphere);
 
 	/*
@@ -165,16 +210,22 @@ int main() {
 	*/
 
 	std::vector<unsigned char> image(W * H * 3, 0);
+
+#pragma omp parallel for schedule(dynamic, 1)
 	for (int i = 0; i < H; i++) {
 		for (int j = 0; j < W; j++) {
+			Vector color;
 
-			// TODO (lab 1) : correct ray_direction so that it goes through each pixel (j, i)
+			// TODO (lab 1) : correct ray_direction so that it goes through each pixel (j, i)			
 			Vector ray_direction(0., 0., -1);
 
 			Ray ray(scene.camera_center, ray_direction);
 
-			// TODO (lab 2) : add Monte Carlo here
-			Vector color = scene.getColor(ray);
+			// TODO (lab 2) : add Monte Carlo / averaging of random ray contributions here
+			// TODO (lab 2) : add antialiasing by altering the ray_direction here
+			// TODO (lab 2) : add depth of field effect by altering the ray origin (and direction) here
+
+			color  = scene.getColor(ray, 0);
 
 			image[(i * W + j) * 3 + 0] = std::min(255., std::max(0., 255. * std::pow(color[0] / 255., 1. / scene.gamma)));
 			image[(i * W + j) * 3 + 1] = std::min(255., std::max(0., 255. * std::pow(color[1] / 255., 1. / scene.gamma)));
