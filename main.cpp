@@ -229,8 +229,6 @@ public:
 			}
 			// test if there is a shadow by sending a new ray
 			// if there is no shadow, compute the formula with dot products etc.
-
-
 			
 		
 			// TODO (lab 2) : add indirect lighting component with a recursive call
