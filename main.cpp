@@ -220,21 +220,30 @@ public:
 			if (objects[object_id]->transparent) { // optional
 
 				// return getColor in the refraction direction, with recursion_depth+1 (recursively)
-			} // else
-
-			double maxposdot = dot(N,(light_position-P)/(light_position-P).norm());
-			if (maxposdot > 0){
-				// std::cout << (light_intensity/(4*M_PI*(light_position-P).norm2()))*(objects[object_id]->albedo/M_PI)*maxposdot << std::endl;
-				return (light_intensity/(4*M_PI*(light_position-P).norm2()))*(objects[object_id]->albedo/M_PI)*maxposdot;
-			}
-			// test if there is a shadow by sending a new ray
-			// if there is no shadow, compute the formula with dot products etc.
+			} // else 
 			
-		
-			// TODO (lab 2) : add indirect lighting component with a recursive call
-		}
+			//initialising new ray from point P to Light 
+			Vector LP = light_position - P; 
+			double d = LP.norm();
+            Vector new_ray_u = LP/d;
+            Ray newRay(P+0.0001*N, new_ray_u); 
 
-		
+			// We check if there is a shadow = there is an intersection between our new ray and an object 
+			// First we need to initialize the variables in which we will stock the object that the ray instersects, if any
+			// REMINIDER : returns true iif there is an intersection between the ray and any object in the scene. if there is an intersection, also computes the point of the *nearest* intersection P, t>=0 the distance between the ray origin and P (i.e., the parameter along the ray) and the unit normal N. 
+			// REMINIDER : Also returns the index of the object within the std::vector objects in object_id
+            Vector inter_P, inter_N;
+            double inter_t = 1e9;
+            int inter_index;
+            bool is_intersection = intersect(newRay, inter_P, inter_t, inter_N, inter_index);
+			bool is_shadow = is_intersection && (inter_t < d); // true if there is a shadow 
+			double cos_theta = std::max(0., dot(N, new_ray_u));
+            if (!is_shadow && cos_theta > 0) { //if no shadow, compute the formula with dot product 
+				return (light_intensity / (4 * M_PI * d * d)) * (objects[object_id]->albedo / M_PI) * cos_theta;
+            }
+
+			//(lab 2) : add indirect lighting component with a recursive call
+		}
 
 		return Vector(0, 0, 0);
 	}
@@ -289,15 +298,31 @@ int main() {
 		for (int j = 0; j < W; j++) {
 			Vector color;
 
-			// TODO (lab 1) : correct ray_direction so that it goes through each pixel (j, i)			
+			// TODO (lab 1) : correct ray_direction so that it goes through each pixel (j, i)	
+			double x = j-W/2 + 1/2;
+			double y =  H/2-i-1/2;
+			double z = -W/(2*tan(scene.fov/2));
 			Vector ray_direction(j-W/2 + 1/2, H/2-i-1/2, -W/(2*tan(scene.fov/2)));
 			ray_direction.normalize();
 
 			Ray ray(scene.camera_center, ray_direction);
 
 			// TODO (lab 2) : add Monte Carlo / averaging of random ray contributions here
-			// TODO (lab 2) : add antialiasing by altering the ray_direction here
-			// TODO (lab 2) : add depth of field effect by altering the ray origin (and direction) here
+			int NB_PATHS = 10;
+			Vector pixelColor(0,0,0);
+			for (int k=0; k<NB_PATHS;k++){
+				// TODO (lab 2) : add antialiasing by altering the ray_direction here
+				double r1 = uniform(engine[]); //to fix
+				double r2 = uniform(engine[]); // to fix
+				double dx = sqrt(-2*log(r1))*cos(2*M_PI*r2)*stdev; // to fix
+				double dy = sqrt(-2*log(r1))*sin (2*M_PI*r2)*stdev; // to fix find stdev
+				// TODO (lab 2) : add depth of field effect by altering the ray origin (and direction) here
+				Vector rand_dir(x+dx, y+dy,z);
+				rand_dir.normalize();
+				Ray ray(scene.camera_center, rand_dir);
+				pixelColor += scene.getColor(ray,max_path_length); //fixxxx!!!
+			}
+	
 
 			color  = scene.getColor(ray, 0);
 
