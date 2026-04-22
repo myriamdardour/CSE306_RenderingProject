@@ -322,6 +322,8 @@ int main() {
 				Ray ray(scene.camera_center, rand_dir);
 				pixelColor += scene.getColor(ray,max_path_length); //fixxxx!!!
 			}
+
+			
 	
 
 			color  = scene.getColor(ray, 0);
