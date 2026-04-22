@@ -168,6 +168,8 @@ public:
 };
 
 
+
+
 // Class only used in labs 3 and 4 
 class TriangleMesh : public Object {
 public:
@@ -300,13 +302,50 @@ public:
 
 	// TODO ray-mesh intersection (labs 3 and 4)
 	bool intersect(const Ray& ray, Vector& P, double& t, Vector& N) const {
-		
+		bool res = false;
+		// compute bounding box 
+		Vector Bmin(1e9,1e9,1e9);
+		Vector Bmax(-1e9,-1e9,-1e9);
+
+		for (int i = 0; i < vertices.size(); i++) {
+			for (int k = 0; k < 3; k++) {
+				Bmin[k] = std::min(Bmin[k], vertices[i][k]);
+				Bmax[k] = std::max(Bmax[k], vertices[i][k]);
+			}
+		}
+
 		// lab 3 : for each triangle, compute the ray-triangle intersection with Moller-Trumbore algorithm
+		for (int i = 0; i < indices.size(); i++) {
+			Vector A = vertices[indices[i].vtx[0]];
+			Vector B = vertices[indices[i].vtx[1]];
+			Vector C = vertices[indices[i].vtx[2]];
+
+			Vector e1 = A-C;
+			Vector e2 = A-B;
+
+			Vector local_N = cross(e1, e2);
+			local_N.normalize();
+
+			double beta = dot(e2, cross((A-ray.O),ray.u))/dot(ray.u,local_N);
+			double gamma = -dot(e1, cross((A-ray.O),ray.u))/dot(ray.u,local_N);
+			double alpha = 1 - beta - gamma;
+			double local_t = dot(A-ray.O,local_N)/dot(ray.u,local_N);
+			// if b,g,a in 0,1 and t > 0 then there is an intersection 
+			if ((beta >= 0 && beta <= 1) && (gamma >= 0 && gamma <= 1) && (alpha >= 0 && alpha <= 1) && (local_t > 0.000001)){
+				if (local_t < t){
+					res = true;
+					t = local_t;
+					P = ray.O + t*ray.u;
+					N = local_N;
+				}
+			}
+
+		}
 		// lab 3 : once done, speed it up by first checking against the mesh bounding box
+		int B_
 		// lab 4 : recursively apply the bounding-box test from a BVH datastructure
 
-
-		return false;
+		return res;
 	}
 
 
