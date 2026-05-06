@@ -346,6 +346,7 @@ public:
 		// lab 4 : recursively apply the bounding-box test from a BVH datastructure
 
 		return res;
+		
 	}
 
 
